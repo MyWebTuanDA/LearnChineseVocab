@@ -45,15 +45,59 @@ def update_card(card_id, new_lvl, next_time):
 # --- GIAO DIỆN ---
 tab1, tab2, tab3 = st.tabs(["➕ Thêm từ", "🧠 Ôn tập", "📚 Kho từ của tôi"])
 
+# --- TAB 1: THÊM TỪ ---
 with tab1:
     st.header(f"Thêm từ cho: {user_id}")
-    c1, c2 = st.columns(2)
-    with c1: vi = st.text_input("Tiếng Việt:")
-    with c2: cn = st.text_input("Tiếng Trung:")
-    if st.button("Lưu lên Database"):
-        if vi and cn:
-            add_card(user_id, vi, cn)
-            st.success("Đã lưu vĩnh viễn!")
+    
+    # Chia làm 2 phần: Nhập thủ công và Nhập từ File
+    nhap_tay, nhap_file = st.tabs(["✍️ Nhập từng từ", "📁 Tải lên từ Excel"])
+    
+    with nhap_tay:
+        c1, c2 = st.columns(2)
+        with c1: vi = st.text_input("Tiếng Việt (Ví dụ: Bị oan ức):")
+        with c2: cn = st.text_input("Tiếng Trung (Ví dụ: 委屈):")
+        if st.button("Lưu lên Database", key="btn_save_manual"):
+            if vi and cn:
+                add_card(user_id, vi.strip(), cn.strip())
+                st.success("Đã lưu vĩnh viễn!")
+            else:
+                st.error("Vui lòng nhập đủ 2 ô.")
+                
+    with nhap_file:
+        st.markdown("💡 **Hướng dẫn:** Trên Google Sheet, chọn `Tệp` -> `Tải xuống` -> `Microsoft Excel (.xlsx)` rồi tải file đó lên đây.")
+        
+        uploaded_file = st.file_uploader("Chọn file Excel của bạn", type=["xlsx"])
+        
+        if uploaded_file is not None:
+            try:
+                # header=None vì bảng của bạn dòng 1 đã là dữ liệu
+                df = pd.read_excel(uploaded_file, header=None)
+                st.success(f"Đã đọc thành công file với {len(df)} từ vựng!")
+                
+                # Hiển thị trước 3 dòng đầu cho bạn kiểm tra
+                st.write("🔍 **Xem trước dữ liệu:**")
+                st.dataframe(df.head(3))
+                
+                if st.button("🚀 Bắt đầu nhập toàn bộ vào Database"):
+                    success_count = 0
+                    # Vòng lặp duyệt qua từng hàng trong file Excel
+                    for index, row in df.iterrows():
+                        try:
+                            # Dựa theo ảnh của bạn: Cột 0 là Tiếng Trung, Cột 2 là Tiếng Việt
+                            cn_word = str(row[0]).strip()
+                            vi_word = str(row[2]).strip()
+                            
+                            # Kiểm tra xem ô có bị trống không (nan)
+                            if cn_word and vi_word and cn_word != 'nan' and vi_word != 'nan':
+                                add_card(user_id, vi_word, cn_word)
+                                success_count += 1
+                        except Exception as e:
+                            continue # Bỏ qua dòng bị lỗi và chạy tiếp
+                            
+                    st.success(f"🎉 Hoàn tất! Đã thêm thành công {success_count} từ vựng vào kho của bạn.")
+                    st.balloons()
+            except Exception as e:
+                st.error(f"Có lỗi khi đọc file: {e}")
 
 with tab2:
     all_cards = get_all_cards(user_id)
