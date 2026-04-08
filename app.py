@@ -99,66 +99,84 @@ with tab1:
             except Exception as e:
                 st.error(f"Có lỗi khi đọc file: {e}")
 
+# --- TAB 2: ÔN TẬP ---
 with tab2:
     all_cards = get_all_cards(user_id)
     now = datetime.now()
-    # Lọc từ đến hạn từ dữ liệu DB
     due_list = [c for c in all_cards if datetime.fromisoformat(c['next_review'].replace('Z', '+00:00')).replace(tzinfo=None) <= now]
 
     if not due_list and 'queue' not in st.session_state:
-        st.info("Hết bài rồi! Database đang đợi bạn thêm từ mới.")
+        st.info("Hết bài rồi! Bạn có thể nghỉ ngơi. ☕")
     else:
+        # Khởi tạo phiên học và thêm biến is_answered để quản lý nút bấm
         if 'queue' not in st.session_state:
             st.session_state.queue = due_list
             st.session_state.wrongs = []
             st.session_state.curr_idx = 0
+            st.session_state.is_answered = False 
 
         q = st.session_state.queue
         i = st.session_state.curr_idx
 
         if i < len(q):
             item = q[i]
-            st.subheader(f"Level {item['level']} | Từ: {item['vietnamese']}")
-            ans = st.text_input("Nhập chữ Hán:", key=f"ans_{item['id']}")
+            st.subheader(f"Level {item['level']} | Từ: :red[{item['vietnamese']}]")
             
-            if st.button("Kiểm tra"):
+            # MẸO CHỐNG TRÌNH DUYỆT GỢI Ý TỪ (AUTOCOMPLETE)
+            # Thêm index (i) vào key để mỗi câu hỏi là một ô text mới hoàn toàn đối với trình duyệt
+            ans = st.text_input("Nhập chữ Hán:", key=f"ans_{item['id']}_{i}")
+            
+            col_check, col_next = st.columns([1, 5])
+            with col_check:
+                if st.button("Kiểm tra"):
+                    st.session_state.is_answered = True
+            
+            # Chỉ hiện kết quả SAU KHI bấm kiểm tra (Không có dòng gợi ý nào hiện thêm)
+            if st.session_state.is_answered:
                 correct = item['chinese']
-                if ans.strip() == correct:
-                    st.success("Đúng!")
-                    if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
-                        # Lên cấp
-                        new_lvl = min(item['level'] + 1, 6)
-                        wait = LEVEL_CONFIG.get(item['level'], timedelta(hours=2))
-                        update_card(item['id'], new_lvl, now + wait)
-                    else:
-                        # Vừa sai xong làm lại thì giữ level 1
-                        update_card(item['id'], 1, now + LEVEL_CONFIG[1])
-                else:
-                    st.error(f"Sai! Đáp án: {correct}")
-                    update_card(item['id'], 1, now + LEVEL_CONFIG[1])
-                    if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
-                        st.session_state.wrongs.append(item)
+                is_correct = (ans.strip() == correct)
                 
-                if st.button("Tiếp theo"):
-                    st.session_state.curr_idx += 1
-                    st.rerun()
+                if is_correct:
+                    st.success("✅ Chính xác!")
+                else:
+                    st.error(f"❌ Sai rồi! Đáp án đúng là: {correct}")
+                
+                with col_next:
+                    if st.button("Tiếp theo ➡️"):
+                        # Lưu logic lên Level hoặc rớt hạng
+                        if is_correct:
+                            if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
+                                new_lvl = min(item['level'] + 1, 6)
+                                wait = LEVEL_CONFIG.get(item['level'], timedelta(hours=2))
+                                update_card(item['id'], new_lvl, now + wait)
+                            else:
+                                update_card(item['id'], 1, now + LEVEL_CONFIG[1])
+                        else:
+                            update_card(item['id'], 1, now + LEVEL_CONFIG[1])
+                            if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
+                                st.session_state.wrongs.append(item)
+                        
+                        # Dọn dẹp để chuyển sang câu tiếp theo
+                        st.session_state.curr_idx += 1
+                        st.session_state.is_answered = False
+                        st.rerun()
         else:
+            # Xử lý vòng lặp làm lại câu sai
             if st.session_state.wrongs:
-                if st.button("Ôn lại câu sai"):
+                st.warning(f"Bạn cần ôn lại {len(st.session_state.wrongs)} câu sai!")
+                if st.button("Bắt đầu sửa lỗi"):
                     st.session_state.queue = st.session_state.wrongs.copy()
                     st.session_state.wrongs = []
                     st.session_state.curr_idx = 0
+                    st.session_state.is_answered = False
                     st.rerun()
             else:
                 st.balloons()
-                if st.button("Xong lượt"):
-                    del st.session_state.queue
+                st.success("Tuyệt vời! Bạn đã hoàn thành sạch sẽ các từ lượt này.")
+                if st.button("Kết thúc phiên học"):
+                    for key in ['queue', 'wrongs', 'curr_idx', 'is_answered']:
+                        if key in st.session_state: del st.session_state[key]
                     st.rerun()
-# --- HÀM XÓA TỪ (Thêm vào phần các hàm tương tác DB) ---
-def delete_card(card_id):
-    supabase.table("flashcards").delete().eq("id", card_id).execute()
-
-# ... (Các phần code cũ giữ nguyên) ...
 
 # --- TAB 3: THƯ VIỆN & QUẢN LÝ ---
 with tab3:
