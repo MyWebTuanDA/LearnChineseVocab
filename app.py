@@ -2,142 +2,142 @@ import streamlit as st
 import json
 from datetime import datetime, timedelta
 import os
-import pandas as pd # Dùng để hiện bảng từ vựng cho đẹp
+import pandas as pd
 
 FILE_NAME = "flashcards.json"
 
+# Cấu hình các mốc thời gian theo Level (Level: Khoảng thời gian chờ)
+LEVEL_CONFIG = {
+    1: timedelta(hours=2),
+    2: timedelta(days=1),
+    3: timedelta(days=2),
+    4: timedelta(days=3),
+    5: timedelta(days=5),
+    6: timedelta(days=365) # Level 6 là mức cao nhất, xem lại sau 1 năm
+}
+
 def load_data():
     if os.path.exists(FILE_NAME):
-        try:
-            with open(FILE_NAME, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return {}
+        with open(FILE_NAME, "r", encoding="utf-8") as f:
+            return json.load(f)
     return {}
 
 def save_data(data):
     with open(FILE_NAME, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def sm2_update(is_correct, rep, interval, ease):
-    if is_correct:
-        if rep == 0: interval = 1
-        elif rep == 1: interval = 6
-        else: interval = int(interval * ease)
-        rep += 1
-        ease += 0.1
-    else:
-        rep = 0
-        interval = 1
-        ease = max(1.3, ease - 0.2)
-    return rep, interval, ease
-
-st.set_page_config(page_title="Học Tiếng Trung SRS", page_icon="🇨🇳", layout="wide")
-st.title("🇨🇳 Hệ thống Flashcard Tiếng Trung Thông Minh")
+st.set_page_config(page_title="Học Tiếng Trung Pro", layout="wide")
+st.title("🇨🇳 Hệ thống Ôn tập Level-Up")
 
 data = load_data()
 
-# Tạo 3 Tab để quản lý
-tab1, tab2, tab3 = st.tabs(["➕ Thêm từ", "🧠 Ôn tập (SRS)", "📚 Thư viện của tôi"])
+tab1, tab2, tab3 = st.tabs(["➕ Thêm từ", "🧠 Ôn tập theo Level", "📚 Thư viện"])
 
-# --- TAB 1: THÊM TỪ ---
+# --- TAB 1: THÊM TỪ (Mặc định Level 1) ---
 with tab1:
-    st.header("Thêm Flashcard mới")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        vi_word = st.text_input("Nghĩa Tiếng Việt (Ví dụ: Trái táo):")
-    with col_b:
-        cn_word = st.text_input("Từ Tiếng Trung (Ví dụ: 苹果):")
+    st.header("Thêm từ vựng mới")
+    c1, c2 = st.columns(2)
+    with c1: vi = st.text_input("Nghĩa Tiếng Việt:")
+    with c2: cn = st.text_input("Từ Tiếng Trung:")
     
-    if st.button("Lưu vào bộ nhớ"):
-        if vi_word and cn_word:
-            data[vi_word] = {
-                "chinese": cn_word.strip(),
-                "repetition": 0, "interval": 0, "ease": 2.5,
-                "next_review": datetime.now().strftime("%Y-%m-%d")
+    if st.button("Lưu từ vựng"):
+        if vi and cn:
+            # Từ mới luôn ở Level 1 và có thể học ngay lập tức
+            data[vi] = {
+                "chinese": cn.strip(),
+                "level": 1,
+                "next_review": datetime.now().strftime("%Y-%m-%d %H:%M")
             }
             save_data(data)
-            st.success(f"Đã lưu thành công từ: {vi_word}")
+            st.success(f"Đã thêm '{vi}' vào Level 1")
         else:
-            st.warning("Vui lòng không để trống ô nào.")
+            st.error("Vui lòng điền đủ thông tin.")
 
-# --- TAB 2: ÔN TẬP ---
+# --- TAB 2: ÔN TẬP (Logic Vòng lặp và Level) ---
 with tab2:
-    st.header("Chế độ ôn tập")
-    today = datetime.now().strftime("%Y-%m-%d")
-    
-    # Lựa chọn chế độ ôn tập
-    mode = st.radio("Chọn chế độ:", ["Đúng lịch (SRS)", "Ôn tập tất cả (Cấp tốc)"], horizontal=True)
-    
-    if mode == "Đúng lịch (SRS)":
-        due_words = [vi for vi, info in data.items() if info["next_review"] <= today]
-        st.caption("Chế độ này giúp bạn ghi nhớ lâu dài theo khoa học.")
+    now = datetime.now()
+    # Lọc từ đến hạn (next_review <= hiện tại)
+    due_list = [vi for vi, info in data.items() if datetime.strptime(info["next_review"], "%Y-%m-%d %H:%M") <= now]
+
+    if not due_list:
+        st.info("Chưa có từ nào đến hạn ôn tập. Hãy nghỉ ngơi!")
     else:
-        due_words = list(data.keys())
-        st.caption("Chế độ này giúp bạn xem lại tất cả các từ đang có.")
+        # Khởi tạo danh sách câu sai trong session_state nếu chưa có
+        if 'review_queue' not in st.session_state:
+            st.session_state.review_queue = due_list.copy() # Danh sách từ cần học trong lượt này
+            st.session_state.wrong_answers = [] # Lưu những từ bị sai để làm lại cuối buổi
+            st.session_state.current_idx = 0
+            st.session_state.is_answered = False
 
-    if not due_words:
-        st.info("Trống trải quá! Hãy thêm từ mới hoặc quay lại vào ngày mai.")
-    else:
-        if 'idx' not in st.session_state: st.session_state.idx = 0
-        if 'is_checked' not in st.session_state: st.session_state.is_checked = False
+        queue = st.session_state.review_queue
+        idx = st.session_state.current_idx
 
-        # Đảm bảo index không vượt quá số lượng từ
-        if st.session_state.idx >= len(due_words):
-            st.session_state.idx = 0
-
-        word = due_words[st.session_state.idx]
-        st.markdown(f"### Nghĩa tiếng Việt: <span style='color:red'>{word}</span>", unsafe_allow_html=True)
-        
-        user_ans = st.text_input("Nhập chữ Hán tương ứng:", key=f"input_{st.session_state.idx}")
-        
-        c1, c2 = st.columns([1, 4])
-        with c1:
+        if idx < len(queue):
+            word = queue[idx]
+            st.subheader(f"Level {data[word]['level']} | Nghĩa: :red[{word}]")
+            
+            user_input = st.text_input("Nhập tiếng Trung:", key=f"re_{word}_{idx}")
+            
             if st.button("Kiểm tra"):
-                st.session_state.is_checked = True
-        
-        if st.session_state.is_checked:
-            correct = data[word]["chinese"]
-            if user_ans.strip() == correct:
-                st.success("🎉 Chính xác!")
-            else:
-                st.error(f"❌ Sai rồi. Đáp án đúng là: {correct}")
+                st.session_state.is_answered = True
             
-            st.info(f"💡 Gợi ý: {word} -> {correct}")
-            
-            if st.button("Từ tiếp theo ➡️"):
-                # Cập nhật thuật toán (chỉ cập nhật nếu ở chế độ SRS)
-                if mode == "Đúng lịch (SRS)":
-                    rep, inter, ease = sm2_update(user_ans.strip() == correct, data[word]["repetition"], data[word]["interval"], data[word]["ease"])
+            if st.session_state.is_answered:
+                correct = data[word]["chinese"]
+                if user_input.strip() == correct:
+                    st.success("Chính xác!")
+                    # Nếu từ này không nằm trong danh sách "đã từng sai" của lượt này thì mới lên cấp
+                    if word not in st.session_state.wrong_answers:
+                        current_lvl = data[word]["level"]
+                        new_lvl = min(current_lvl + 1, 6)
+                        next_time = now + LEVEL_CONFIG[current_lvl]
+                        data[word].update({
+                            "level": new_lvl,
+                            "next_review": next_time.strftime("%Y-%m-%d %H:%M")
+                        })
+                    # Nếu là câu vừa sai nay làm lại cho đúng, nó vẫn ở Level 1 và hẹn 2 tiếng sau
+                    else:
+                        data[word].update({
+                            "level": 1,
+                            "next_review": (now + LEVEL_CONFIG[1]).strftime("%Y-%m-%d %H:%M")
+                        })
+                else:
+                    st.error(f"Sai rồi! Đáp án là: {correct}")
+                    # Đưa về level 1 và cho vào danh sách câu sai để làm lại cuối buổi
                     data[word].update({
-                        "repetition": rep, "interval": inter, "ease": ease,
-                        "next_review": (datetime.now() + timedelta(days=inter)).strftime("%Y-%m-%d")
+                        "level": 1,
+                        "next_review": (now + LEVEL_CONFIG[1]).strftime("%Y-%m-%d %H:%M")
                     })
-                    save_data(data)
+                    if word not in st.session_state.wrong_answers:
+                        st.session_state.wrong_answers.append(word)
                 
-                st.session_state.idx += 1
-                st.session_state.is_checked = False
-                st.rerun()
+                if st.button("Tiếp theo"):
+                    save_data(data)
+                    st.session_state.current_idx += 1
+                    st.session_state.is_answered = False
+                    st.rerun()
+        else:
+            # Khi đã đi hết danh sách ban đầu
+            if st.session_state.wrong_answers:
+                st.warning(f"Bạn đã hoàn thành lượt đầu, nhưng có {len(st.session_state.wrong_answers)} câu sai cần làm lại ngay!")
+                if st.button("Làm lại các câu sai"):
+                    st.session_state.review_queue = st.session_state.wrong_answers.copy()
+                    # Giữ nguyên danh sách wrong_answers để không cho lên cấp trong lượt làm lại
+                    st.session_state.current_idx = 0
+                    st.rerun()
+            else:
+                st.balloons()
+                st.success("Chúc mừng! Bạn đã thuộc hết từ vựng của lượt này.")
+                if st.button("Kết thúc phiên ôn tập"):
+                    del st.session_state.review_queue
+                    del st.session_state.wrong_answers
+                    st.rerun()
 
 # --- TAB 3: THƯ VIỆN ---
 with tab3:
-    st.header("Danh sách từ vựng của bạn")
-    if not data:
-        st.write("Bạn chưa có từ nào trong kho.")
-    else:
-        # Chuyển đổi dữ liệu sang bảng để xem cho dễ
-        df_list = []
-        for vi, info in data.items():
-            df_list.append({
-                "Tiếng Việt": vi,
-                "Tiếng Trung": info["chinese"],
-                "Lần ôn tiếp theo": info["next_review"],
-                "Độ thuộc": f"{info['repetition']} lần đúng"
-            })
-        df = pd.DataFrame(df_list)
-        st.table(df) # Hiện bảng danh sách từ
-        
-        # Thêm nút xóa dữ liệu nếu muốn làm lại từ đầu
-        if st.button("Xóa toàn bộ từ vựng (Cẩn thận!)"):
-            save_data({})
-            st.rerun()
+    st.header("Quản lý kho từ")
+    if data:
+        df_list = [{"Từ": k, "Level": v["level"], "Hẹn ôn tập": v["next_review"]} for k, v in data.items()]
+        st.table(pd.DataFrame(df_list))
+    if st.button("Xóa sạch dữ liệu"):
+        save_data({})
+        st.rerun()
