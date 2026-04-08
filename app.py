@@ -55,9 +55,7 @@ if st.sidebar.button("Đăng xuất 🚪"):
 # (Từ phần khai báo các hàm get_all_cards... cho đến các Tab)
 # ==========================================
 
-# 3. QUẢN LÝ NGƯỜI DÙNG (Để mỗi người dùng một kho riêng)
-st.sidebar.title("👤 Đăng nhập")
-user_id = st.sidebar.text_input("Nhập Tên/Email của bạn:", value="guest_user")
+
 
 # --- HÀM TƯƠNG TÁC DATABASE ---
 def get_all_cards(uid):
