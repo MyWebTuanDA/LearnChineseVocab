@@ -108,22 +108,21 @@ with tab2:
     if not due_list and 'queue' not in st.session_state:
         st.info("Hết bài rồi! Bạn có thể nghỉ ngơi. ☕")
     else:
-        # Khởi tạo phiên học và thêm biến is_answered để quản lý nút bấm
+        # Khởi tạo phiên học an toàn
         if 'queue' not in st.session_state:
             st.session_state.queue = due_list
             st.session_state.wrongs = []
             st.session_state.curr_idx = 0
             st.session_state.is_answered = False 
 
-        q = st.session_state.queue
-        i = st.session_state.curr_idx
+        # Dùng .get() để lấy dữ liệu an toàn, chống lỗi AttributeError
+        q = st.session_state.get('queue', [])
+        i = st.session_state.get('curr_idx', 0)
 
         if i < len(q):
             item = q[i]
-            st.subheader(f"Level {item['level']} | Từ: :red[{item['vietnamese']}]")
+            st.subheader(f"Level {item.get('level', 1)} | Từ: :red[{item['vietnamese']}]")
             
-            # MẸO CHỐNG TRÌNH DUYỆT GỢI Ý TỪ (AUTOCOMPLETE)
-            # Thêm index (i) vào key để mỗi câu hỏi là một ô text mới hoàn toàn đối với trình duyệt
             ans = st.text_input("Nhập chữ Hán:", key=f"ans_{item['id']}_{i}")
             
             col_check, col_next = st.columns([1, 5])
@@ -131,8 +130,8 @@ with tab2:
                 if st.button("Kiểm tra"):
                     st.session_state.is_answered = True
             
-            # Chỉ hiện kết quả SAU KHI bấm kiểm tra (Không có dòng gợi ý nào hiện thêm)
-            if st.session_state.is_answered:
+            # SỬA LỖI Ở ĐÂY: Dùng .get() thay vì gọi trực tiếp
+            if st.session_state.get('is_answered', False):
                 correct = item['chinese']
                 is_correct = (ans.strip() == correct)
                 
@@ -143,26 +142,23 @@ with tab2:
                 
                 with col_next:
                     if st.button("Tiếp theo ➡️"):
-                        # Lưu logic lên Level hoặc rớt hạng
                         if is_correct:
-                            if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
-                                new_lvl = min(item['level'] + 1, 6)
-                                wait = LEVEL_CONFIG.get(item['level'], timedelta(hours=2))
+                            if item['id'] not in [w['id'] for w in st.session_state.get('wrongs', [])]:
+                                new_lvl = min(item.get('level', 1) + 1, 6)
+                                wait = LEVEL_CONFIG.get(item.get('level', 1), timedelta(hours=2))
                                 update_card(item['id'], new_lvl, now + wait)
                             else:
                                 update_card(item['id'], 1, now + LEVEL_CONFIG[1])
                         else:
                             update_card(item['id'], 1, now + LEVEL_CONFIG[1])
-                            if item['id'] not in [w['id'] for w in st.session_state.wrongs]:
+                            if item['id'] not in [w['id'] for w in st.session_state.get('wrongs', [])]:
                                 st.session_state.wrongs.append(item)
                         
-                        # Dọn dẹp để chuyển sang câu tiếp theo
                         st.session_state.curr_idx += 1
                         st.session_state.is_answered = False
                         st.rerun()
         else:
-            # Xử lý vòng lặp làm lại câu sai
-            if st.session_state.wrongs:
+            if st.session_state.get('wrongs', []):
                 st.warning(f"Bạn cần ôn lại {len(st.session_state.wrongs)} câu sai!")
                 if st.button("Bắt đầu sửa lỗi"):
                     st.session_state.queue = st.session_state.wrongs.copy()
