@@ -5,8 +5,8 @@ import pandas as pd
 
 # 1. KẾT NỐI SUPABASE
 # Thay bằng thông tin bạn lấy ở bước 4
-url: str = "URL_CUA_BAN"
-key: str = "KEY_CUA_BAN"
+url: str = "https://jfljigspsiywhzkupazo.supabase.co"
+key: str = "sb_publishable_WMSnNdEA6YR1UZl3CzZ4iA_HGU4BAJi"
 supabase: Client = create_client(url, key)
 
 # 2. CẤU HÌNH LEVEL
