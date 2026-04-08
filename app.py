@@ -211,11 +211,17 @@ with tab3:
                         st.rerun() # Load lại trang để cập nhật danh sách
                 st.divider() # Đường kẻ ngang phân cách các từ
 
-    # Nút xóa tất cả (giữ lại để reset nhanh nếu cần)
-    if st.button("🚨 Xóa sạch kho từ"):
-        if st.confirm("Bạn có chắc chắn muốn xóa toàn bộ từ vựng không?"):
-            supabase.table("flashcards").delete().eq("id", user_id).execute()
-            st.rerun()
+   # --- ĐOẠN CODE NÚT XÓA TẤT CẢ (Đã sửa lỗi) ---
+    st.divider()
+    with st.expander("🚨 Xóa sạch kho từ (Khu vực nguy hiểm)"):
+        st.warning("Hành động này sẽ xóa vĩnh viễn TOÀN BỘ từ vựng trong kho của bạn. Không thể hoàn tác!")
+        xac_nhan = st.checkbox("Tôi hiểu và chắc chắn muốn xóa sạch dữ liệu")
+        
+        if xac_nhan:
+            if st.button("Xác nhận XÓA TẤT CẢ", type="primary"):
+                # Đã sửa lại thành .eq("user_id", user_id) để xóa đúng toàn bộ từ của user đó
+                supabase.table("flashcards").delete().eq("user_id", user_id).execute()
+                st.rerun()
 with tab3:
     st.header(f"Dữ liệu của {user_id}")
     data_db = get_all_cards(user_id)
