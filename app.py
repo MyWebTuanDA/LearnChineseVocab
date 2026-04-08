@@ -16,6 +16,44 @@ LEVEL_CONFIG = {
 }
 
 st.set_page_config(page_title="Chinese Pro DB", layout="wide")
+# --- CHÈN ĐOẠN NÀY NGAY DƯỚI st.set_page_config ---
+
+# 1. Khởi tạo trạng thái đăng nhập
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_id = ""
+
+# 2. Xây dựng Trạm kiểm soát (Màn hình đăng nhập)
+if not st.session_state.logged_in:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🔐 Đăng nhập")
+        username = st.text_input("Nhập tên hoặc Email của bạn:")
+        
+        if st.button("Vào Học 🚀", type="primary", use_container_width=True):
+            if username.strip():
+                st.session_state.logged_in = True
+                st.session_state.user_id = username.strip()
+                st.rerun() # Tải lại trang để mở khóa
+            else:
+                st.error("Vui lòng nhập tên!")
+                
+    # LỆNH CHẶN: Dừng toàn bộ hệ thống ở đây nếu chưa đăng nhập
+    st.stop() 
+
+# 3. Code dành cho người đã qua trạm kiểm soát
+user_id = st.session_state.user_id
+st.sidebar.title(f"👤 Chào, {user_id}")
+
+if st.sidebar.button("Đăng xuất 🚪"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
+
+# ==========================================
+# GIỮ NGUYÊN TOÀN BỘ CODE CŨ CỦA BẠN TỪ ĐÂY TRỞ XUỐNG
+# (Từ phần khai báo các hàm get_all_cards... cho đến các Tab)
+# ==========================================
 
 # 3. QUẢN LÝ NGƯỜI DÙNG (Để mỗi người dùng một kho riêng)
 st.sidebar.title("👤 Đăng nhập")
