@@ -110,7 +110,54 @@ with tab2:
                 if st.button("Xong lượt"):
                     del st.session_state.queue
                     st.rerun()
+# --- HÀM XÓA TỪ (Thêm vào phần các hàm tương tác DB) ---
+def delete_card(card_id):
+    supabase.table("flashcards").delete().eq("id", card_id).execute()
 
+# ... (Các phần code cũ giữ nguyên) ...
+
+# --- TAB 3: THƯ VIỆN & QUẢN LÝ ---
+with tab3:
+    st.header(f"📚 Kho từ của {user_id}")
+    
+    # Lấy dữ liệu mới nhất từ Database
+    data_db = get_all_cards(user_id)
+    
+    if not data_db:
+        st.info("Kho từ đang trống.")
+    else:
+        # Tạo bảng dữ liệu để hiển thị
+        df = pd.DataFrame(data_db)
+        
+        # Hiển thị danh sách từ kèm nút xóa
+        for index, row in df.iterrows():
+            with st.container():
+                # Chia cột để hàng ngang đẹp hơn
+                col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 3, 1])
+                
+                with col1:
+                    st.write(f"**{row['vietnamese']}**")
+                with col2:
+                    st.write(f"{row['chinese']}")
+                with col3:
+                    st.write(f"Lvl: {row['level']}")
+                with col4:
+                    # Định dạng lại thời gian hiển thị cho dễ nhìn
+                    next_time = datetime.fromisoformat(row['next_review'].replace('Z', '+00:00')).strftime("%d/%m %H:%M")
+                    st.write(f"📅: {next_time}")
+                with col5:
+                    # Nút xóa cho từng từ
+                    if st.button("Xóa", key=f"del_{row['id']}"):
+                        delete_card(row['id'])
+                        st.success(f"Đã xóa '{row['vietnamese']}'")
+                        st.rerun() # Load lại trang để cập nhật danh sách
+                st.divider() # Đường kẻ ngang phân cách các từ
+
+    # Nút xóa tất cả (giữ lại để reset nhanh nếu cần)
+    if st.button("🚨 Xóa sạch kho từ"):
+        if st.confirm("Bạn có chắc chắn muốn xóa toàn bộ từ vựng không?"):
+            supabase.table("flashcards").delete().eq("id", user_id).execute()
+            st.rerun()
 with tab3:
     st.header(f"Dữ liệu của {user_id}")
     data_db = get_all_cards(user_id)
